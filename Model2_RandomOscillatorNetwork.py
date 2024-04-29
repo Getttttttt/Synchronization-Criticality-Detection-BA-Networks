@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import networkx as nx
 import os
 import csv
@@ -8,51 +7,44 @@ from Modify_KuramotoModel2 import Kuramoto
 
 random.seed(3407)
 
+def generate_network(network_size, connections):
+    """Generates a Barabasi-Albert network and its adjacency matrix."""
+    network = nx.barabasi_albert_graph(network_size, connections)
+    return nx.to_numpy_array(network)
 
-# 循环不同的网络大小
-# N=500,m=8,gamma=2.79
-# N=1000,m=8,gamma=2.79
-# N=2000,m=7,gamma=2.79
-# N=4000,m=5,gamma=2.8
-# N=5000,m=7,gamma=2.81
-for prams in [(500,8),(2000,7),(4000,5),(5000,7)]:
-    N,m = prams
-    print(N)
-    G = nx.barabasi_albert_graph(N, m)
-    G_mat = nx.to_numpy_array(G)
-    natfreqs = np.random.normal(0, 1, N)
-    coupling_vals = np.arange(0, 0.201, 0.02)
-    angles_vec = np.random.uniform(-np.pi, np.pi, N)
-    runs = []
+def write_results_to_file(network_size, simulation_results, coupling_values, model):
+    """Writes the results of simulations to a text file."""
+    filename = f'OutcomeData/model2_output_{network_size}.txt'
+    with open(filename, 'a') as file:
+        for i, coupling in enumerate(coupling_values):
+            r_mean = np.mean([model.phase_coherence(vec) for vec in np.array(simulation_results)[i, :, -1000:].T])
+            file.write(f"{coupling} {r_mean}\n")
 
-    for coupling in coupling_vals:
-        print(coupling)
-        model = Kuramoto(coupling=coupling, dt=0.1, T=100, n_nodes=N, natfreqs=natfreqs)
-        act_mat = model.run(adj_mat=G_mat, angles_vec=angles_vec)
-        runs.append(act_mat)
 
-    runs_array = np.array(runs)
-    plt.figure()
+def run_kuramoto_simulation(network_size, connections):
+    """Executes the Kuramoto model for a range of coupling values and computes coherence."""
+    adjacency_matrix = generate_network(network_size, connections)
+    natural_frequencies = np.random.normal(0, 1, network_size)
+    coupling_values = np.arange(0, 0.201, 0.02)
+    initial_phases = np.random.uniform(-np.pi, np.pi, network_size)
+    simulation_results = []
+    models = []  # Keep track of models for phase coherence calculation
 
-    for i, coupling in enumerate(coupling_vals):
-        r_mean = np.mean([model.phase_coherence(vec) for vec in runs_array[i, :, -1000:].T])
-        plt.scatter(coupling, r_mean, c='steelblue', s=20, alpha=0.7)
+    for coupling_strength in coupling_values:
+        print(coupling_strength)
+        model = Kuramoto(coupling=coupling_strength, dt=0.1, T=100, n_nodes=network_size, natfreqs=natural_frequencies)
+        activity_matrix = model.run(adj_mat=adjacency_matrix, angles_vec=initial_phases)
+        simulation_results.append(activity_matrix)
+        models.append(model)  # Store model used for each simulation
 
-        # 将结果写入CSV文件
-        with open('data/results2.csv', 'a', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow([N, coupling, r_mean])
+    return simulation_results, coupling_values, models[-1]  # Return the last model used
 
-    # Kc = 2 / (np.pi * 1 * N)
-    # plt.vlines(Kc, 0, 1, linestyles='--', color='orange')
-    # r_theory = np.sqrt(coupling_vals / N - Kc)
-    # plt.plot(coupling_vals, r_theory, label=r'$r = \sqrt{K-K_c}$')
+def run_simulation():
+    for params in [(500, 2), (1000, 2), (2000, 4)]:
+        network_size, connections = params
+        print(network_size)
+        simulation_results, coupling_values, model = run_kuramoto_simulation(network_size, connections)
+        write_results_to_file(network_size, simulation_results, coupling_values, model)
 
-    # plt.legend()
-    plt.grid(linestyle='--', alpha=0.8)
-    plt.ylabel('order parameter (R)')
-    plt.xlabel(r'$\lambda$')
-
-    # 保存图形
-    plt.savefig(f'fig3/N_{N}.png')
-    plt.close()
+if __name__ == '__main__':
+    run_simulation()

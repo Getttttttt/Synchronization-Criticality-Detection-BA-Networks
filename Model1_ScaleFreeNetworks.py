@@ -1,50 +1,54 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import networkx as nx
 import csv
 import random
 import powerlaw as pl
 from Modify_KuramotoModel1 import Kuramoto
-from multiprocessing import Pool,cpu_count
+from multiprocessing import Pool, cpu_count
 
 random.seed(3407)
 
-def run_simulation(parms):
-    N,m = parms
+def create_barabasi_albert_network(size, connections):
+    """Generates a Barabasi-Albert graph."""
+    return nx.barabasi_albert_graph(size, connections)
+
+def calculate_power_law_exponent(degrees):
+    """Calculates the power law exponent using the powerlaw library."""
+    fit = pl.Fit(degrees, discrete=True)
+    return round(fit.power_law.alpha, 2)  # Typical value approximates to 3
+
+def simulate_kuramoto_model(network_size, connections):
+    """Runs the Kuramoto model simulation and writes results to a file."""
     header = ['coupling', 'r_mean']
-    filename = f'OutcomeData/model1_output_{N}.txt'
+    filename = f'OutcomeData/model1_output_{network_size}.txt'
 
     with open(filename, 'w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(' '.join(header))
+        file.write(' '.join(header))
 
-    G = nx.barabasi_albert_graph(N, m)
-    BA_degrees = [G.degree(n) for n in G]
-    fit =pl.Fit(BA_degrees,discrete=True)
-    gamma = round(fit.power_law.alpha,2)  # gamma约为3
-    G_mat = nx.to_numpy_array(G)
-    natfreqs = np.random.uniform(-0.5, 0.5, N)
-    coupling_vals = np.linspace(0, 1, 50)
-    angles_vec = np.random.uniform(-np.pi, np.pi, N)
-    runs = []
+    network = create_barabasi_albert_network(network_size, connections)
+    degree_sequence = [network.degree(node) for node in network]
+    gamma = calculate_power_law_exponent(degree_sequence)
+    adjacency_matrix = nx.to_numpy_array(network)
+    natural_frequencies = np.random.uniform(-0.5, 0.5, network_size)
+    coupling_values = np.linspace(0, 1, 50)
+    initial_phases = np.random.uniform(-np.pi, np.pi, network_size)
+    simulation_results = []
 
-    for coupling in coupling_vals:
-        model = Kuramoto(coupling=coupling, dt=0.1, T=100, n_nodes=N, natfreqs=natfreqs)
-        act_mat = model.run(adj_mat=G_mat, angles_vec=angles_vec)
-        runs.append(act_mat)
+    for coupling_strength in coupling_values:
+        model = Kuramoto(coupling=coupling_strength, dt=0.1, T=100, n_nodes=network_size, natfreqs=natural_frequencies)
+        activity_matrix = model.run(adj_mat=adjacency_matrix, angles_vec=initial_phases)
+        simulation_results.append(activity_matrix)
 
-        runs_array = np.array(runs)
+        results_array = np.array(simulation_results)
 
-    for i, coupling in enumerate(coupling_vals):
-        r_mean = np.mean([model.phase_coherence(vec) for vec in runs_array[i, :, -1000:].T])
+    for index, coupling_strength in enumerate(coupling_values):
+        coherence_mean = np.mean([model.phase_coherence(phase_vec) for phase_vec in results_array[index, :, -1000:].T])
 
-        # 将结果写入CSV文件
-        with open(filename, 'a', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow([N,gamma, coupling, r_mean])
+        # Write results to file
+        with open(filename, 'a') as file:
+            file.write(f"{coupling_strength} {coherence_mean}\n")
 
-   
-    if __name__ == '__main__':
-        network_sizes = [(500,3),(1000,3), (2000,3)]
-        pool = Pool(processes=cpu_count())
-        pool.map(run_simulation, network_sizes)
+if __name__ == '__main__':
+    network_configs = [(500, 3), (1000, 3), (2000, 3)]
+    with Pool(processes=cpu_count()) as pool:
+        pool.map(simulate_kuramoto_model, network_configs)
