@@ -73,7 +73,7 @@ class Kuramoto:
         # Compute it only once here and pass it to the derivative function
         # n_interactions = (adj_mat != 0).sum(axis=0)  # number of incoming interactions
         coupling = self.coupling  # normalize coupling by number of interactions
-        # 模型1输入的是lambda,模型2输入的是K
+        # model1 input: lambda, model2 input: K
         t = np.linspace(0, self.T, int(self.T/self.dt))
         timeseries = odeint(self.derivative, angles_vec, t, args=(adj_mat, coupling))
         return timeseries.T  # transpose for consistency (act_mat:node vs time)
